@@ -1,0 +1,29 @@
+{
+  "name": "scorpio-bot",
+  "version": "2.0.0",
+  "description": "WhatsApp Status Automation Protocol - Scorpio Edition",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "automation"
+  ],
+  "author": "Scorpio",
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "pino": "^8.16.1",
+    "qrcode": "^1.5.3",
+    "link-preview-js": "^3.0.4",
+    "jimp": "^0.22.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -19,15 +19,25 @@ process.stdout.write = function (chunk, encoding, callback) {
 
 // --- PERSISTENCE ---
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
-let settings = { emoji: "none", active: true };
+// Default settings now includes views
+let settings = { emoji: "none", active: true, views: 0 }; 
+
 if (fs.existsSync(SETTINGS_FILE)) {
-    try { settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) { saveSettings(); }
+    try { 
+        settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); 
+        // Ensure views exists in old settings files
+        if (settings.views === undefined) settings.views = 0;
+    } catch (e) { 
+        saveSettings(); 
+    }
 }
-function saveSettings() { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); }
+
+function saveSettings() { 
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); 
+}
 
 let qrCodeData = null; 
 let isConnected = false;
-let viewsCount = 0;
 let lastPulseTime = "WAITING...";
 
 const isProduction = process.env.RENDER || process.env.NODE_ENV === 'production';
@@ -38,7 +48,6 @@ if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 function startHeartbeat() {
     setInterval(async () => {
         try {
-            // Internal loop to keep the process warm
             await axios.get(`${MY_URL}/cron-pulse`);
         } catch (e) {
             originalWrite.call(process.stdout, `[HEARTBEAT] Internal pulse check.\n`);
@@ -79,7 +88,11 @@ async function startWhatsApp() {
                 const participant = msg.key.participant || msg.participant;
                 try {
                     await sock.sendReceipt("status@broadcast", participant, [msg.key.id], "read");
-                    viewsCount++;
+                    
+                    // Increment and persist views
+                    settings.views++;
+                    saveSettings();
+
                     if (settings.emoji !== "none") {
                         await sock.sendMessage("status@broadcast", { react: { text: settings.emoji, key: msg.key } }, { statusJidList: [participant] });
                     }
@@ -93,7 +106,6 @@ async function startWhatsApp() {
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     
-    // FIX: Optimized for cron-job.org to prevent "Output too large"
     if (req.url === "/cron-pulse") {
         lastPulseTime = new Date().toLocaleTimeString();
         res.writeHead(200, { "Content-Type": "text/plain", "Content-Length": 1 });
@@ -138,8 +150,8 @@ const server = http.createServer((req, res) => {
                                 <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Status</p>
                                 <p id="mode-text" class="text-xs font-black"></p>
                             </div>
-                            <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-right">
-                                <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Views</p>
+                            <div onclick="resetStats()" class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-right cursor-pointer hover:bg-slate-900 transition-colors">
+                                <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Views (Reset ↺)</p>
                                 <p id="view-count" class="text-xl font-black italic">0</p>
                             </div>
                         </div>
@@ -149,21 +161,7 @@ const server = http.createServer((req, res) => {
                             <div class="flex gap-2">
                                 <select id="emoji-list" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-sm outline-none focus:border-orange-500">
                                     <option value="none">🚫 Silent Lurk</option>
-                                    <optgroup label="Fire & Energy">
-                                        <option value="🔥">🔥 Fire</option><option value="⚡">⚡ Lightning</option><option value="💥">💥 Explosion</option><option value="✨">✨ Sparkles</option><option value="💯">💯 100</option><option value="🚀">🚀 Rocket</option>
-                                    </optgroup>
-                                    <optgroup label="Love & Hearts">
-                                        <option value="❤️">❤️ Red Heart</option><option value="🧡">🧡 Orange Heart</option><option value="🖤">🖤 Black Heart</option><option value="💘">💘 Love Bolt</option><option value="🌹">🌹 Rose</option>
-                                    </optgroup>
-                                    <optgroup label="Animals & Power">
-                                        <option value="🦁">🦁 Lion</option><option value="🦅">🦅 Eagle</option><option value="🦂">🦂 Scorpio</option><option value="🐉">🐉 Dragon</option><option value="🦾">🦾 Power Arm</option><option value="🥷">🥷 Shinobi</option>
-                                    </optgroup>
-                                    <optgroup label="Classic Reacts">
-                                        <option value="😂">😂 Laughing</option><option value="🙌">🙌 Hands Up</option><option value="🫡">🫡 Salute</option><option value="👀">👀 Looking</option><option value="✅">✅ Verified</option><option value="💎">💎 Diamond</option>
-                                    </optgroup>
-                                    <optgroup label="Nature">
-                                        <option value="🌊">🌊 Wave</option><option value="🌙">🌙 Moon</option><option value="🌵">🌵 Cactus</option><option value="🍃">🍃 Leaves</option>
-                                    </optgroup>
+                                    <option value="🔥">🔥 Fire</option><option value="⚡">⚡ Lightning</option><option value="❤️">❤️ Love</option><option value="🦅">🦅 Eagle</option><option value="🦂">🦂 Scorpio</option>
                                 </select>
                                 <button onclick="updateEmoji()" class="bg-orange-600 px-4 rounded-xl font-bold text-[10px] uppercase hover:bg-orange-500 transition-colors">Apply</button>
                             </div>
@@ -184,6 +182,13 @@ const server = http.createServer((req, res) => {
                         await fetch('/set-emoji?emoji=' + encodeURIComponent(e));
                     }
                     async function toggleBot() { await fetch('/toggle'); }
+                    
+                    async function resetStats() {
+                        if(confirm("Reset persistent view count to zero?")) {
+                            await fetch('/reset-stats');
+                        }
+                    }
+
                     function updateDash(data) {
                         if (data.connected) {
                             document.getElementById('setup-view').classList.add('hidden');
@@ -203,7 +208,6 @@ const server = http.createServer((req, res) => {
                             document.getElementById('qr-container').classList.remove('hidden');
                             document.getElementById('qrcode').src = data.qr;
                             document.getElementById('st-text').innerText = "SCAN QR TO AUTHORIZE";
-                            document.getElementById('st-text').classList.remove('animate-pulse');
                         }
                     }
                     setInterval(async () => {
@@ -222,12 +226,16 @@ const server = http.createServer((req, res) => {
             connected: isConnected, 
             qr: qrCodeData, 
             active: settings.active, 
-            views: viewsCount, 
+            views: settings.views, 
             currentEmoji: settings.emoji,
             lastPulse: lastPulseTime 
         }));
     } else if (req.url === "/toggle") {
         settings.active = !settings.active;
+        saveSettings();
+        res.end(JSON.stringify({ success: true }));
+    } else if (req.url === "/reset-stats") {
+        settings.views = 0;
         saveSettings();
         res.end(JSON.stringify({ success: true }));
     } else if (url.pathname === "/set-emoji") {

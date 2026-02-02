@@ -18,7 +18,11 @@ const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 let settings = { emoji: "✅", active: true };
 
 if (fs.existsSync(SETTINGS_FILE)) {
-    settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+    try {
+        settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+    } catch (e) {
+        saveSettings();
+    }
 }
 
 function saveSettings() {
@@ -97,6 +101,9 @@ const server = http.createServer((req, res) => {
                     body { background: #020617; }
                     .bg-mesh { background-image: radial-gradient(at 0% 0%, rgba(249, 115, 22, 0.15) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(30, 64, 175, 0.15) 0, transparent 50%); }
                     .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+                    select::-webkit-scrollbar { width: 8px; }
+                    select::-webkit-scrollbar-track { background: #020617; }
+                    select::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
                 </style>
             </head>
             <body class="bg-mesh flex items-center justify-center min-h-screen text-slate-200 p-6">
@@ -130,14 +137,44 @@ const server = http.createServer((req, res) => {
                             <p class="text-[10px] text-slate-400 uppercase font-black mb-3 text-left">Reaction Protocol</p>
                             <div class="flex gap-2">
                                 <select id="emoji-list" class="flex-1 bg-slate-950 text-white rounded-xl px-4 py-3 outline-none border border-slate-800 focus:border-orange-500/50 text-lg">
-                                    <option value="✅">✅ Done</option>
-                                    <option value="🔥">🔥 Fire</option>
-                                    <option value="❤️">❤️ Love</option>
-                                    <option value="🦂">🦂 Scorpio</option>
-                                    <option value="👀">👀 Seen</option>
-                                    <option value="💯">💯 Real</option>
-                                    <option value="⚡">⚡ Speed</option>
-                                    <option value="🌟">🌟 Star</option>
+                                    <optgroup label="System" class="bg-slate-900 text-slate-500">
+                                        <option value="✅">✅ Done</option>
+                                        <option value="✔">✔ Check</option>
+                                        <option value="🆗">🆗 OK</option>
+                                        <option value="🎯">🎯 Target</option>
+                                    </optgroup>
+                                    <optgroup label="Vibes" class="bg-slate-900 text-slate-500">
+                                        <option value="🔥">🔥 Fire</option>
+                                        <option value="⚡">⚡ Speed</option>
+                                        <option value="🚀">🚀 Launch</option>
+                                        <option value="🌟">🌟 Star</option>
+                                        <option value="💯">💯 Real</option>
+                                        <option value="✨">✨ Magic</option>
+                                        <option value="💥">💥 Boom</option>
+                                    </optgroup>
+                                    <optgroup label="Attitude" class="bg-slate-900 text-slate-500">
+                                        <option value="🦂">🦂 Scorpio</option>
+                                        <option value="👀">👀 Seen</option>
+                                        <option value="🕶️">🕶️ Stealth</option>
+                                        <option value="🦾">🦾 Flex</option>
+                                        <option value="👑">👑 King</option>
+                                        <option value="💎">💎 Diamond</option>
+                                        <option value="🥷">🥷 Shinobi</option>
+                                    </optgroup>
+                                    <optgroup label="Love & Respect" class="bg-slate-900 text-slate-500">
+                                        <option value="❤️">❤️ Red Heart</option>
+                                        <option value="🧡">🧡 Orange</option>
+                                        <option value="🖤">🖤 Black</option>
+                                        <option value="🫡">🫡 Salute</option>
+                                        <option value="🙌">🙌 Hands Up</option>
+                                        <option value="🤝">🤝 Deal</option>
+                                    </optgroup>
+                                    <optgroup label="Elements" class="bg-slate-900 text-slate-500">
+                                        <option value="🌙">🌙 Moon</option>
+                                        <option value="🌊">🌊 Wave</option>
+                                        <option value="🍀">🍀 Luck</option>
+                                        <option value="🪐">🪐 Saturn</option>
+                                    </optgroup>
                                 </select>
                                 <button id="setEmojiBtn" onclick="updateEmoji()" class="bg-orange-600 hover:bg-orange-500 text-white px-5 rounded-xl font-black text-xs uppercase transition-all">Set</button>
                             </div>

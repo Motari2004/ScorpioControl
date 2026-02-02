@@ -4,11 +4,11 @@ const fs = require("fs");
 const pino = require("pino");
 const QRCode = require("qrcode");
 const path = require("path");
-const axios = require("axios"); // Make sure to run: npm install axios
+const axios = require("axios");
 
 // --- CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
-const MY_URL = "https://ig24.onrender.com"; // Your specific Render URL
+const MY_URL = "https://scorpiocontrol.onrender.com";
 
 const originalWrite = process.stdout.write;
 process.stdout.write = function (chunk, encoding, callback) {
@@ -28,7 +28,7 @@ function saveSettings() { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(setting
 let qrCodeData = null; 
 let isConnected = false;
 let viewsCount = 0;
-let lastPulseTime = "Never";
+let lastPulseTime = "WAITING...";
 
 const isProduction = process.env.RENDER || process.env.NODE_ENV === 'production';
 const AUTH_FOLDER = isProduction ? path.join('/tmp', 'scorpio_auth') : path.join(__dirname, 'auth_info');
@@ -38,13 +38,12 @@ if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 function startHeartbeat() {
     setInterval(async () => {
         try {
-            await axios.get(MY_URL + "/cron-pulse");
-            lastPulseTime = new Date().toLocaleTimeString();
-            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse sent at ${lastPulseTime}\n`);
+            await axios.get(`${MY_URL}/cron-pulse`);
+            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse validated.\n`);
         } catch (e) {
-            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse failed, but engine is active.\n`);
+            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse failed.\n`);
         }
-    }, 600000); // Pings every 10 minutes
+    }, 600000); 
 }
 
 async function startWhatsApp() {
@@ -94,7 +93,6 @@ async function startWhatsApp() {
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     
-    // Pulse Endpoint for External Monitors
     if (req.url === "/cron-pulse") {
         lastPulseTime = new Date().toLocaleTimeString();
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -111,48 +109,64 @@ const server = http.createServer((req, res) => {
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <script src="https://cdn.tailwindcss.com"></script>
-                <title>Scorpio Hybrid</title>
+                <title>Scorpio Control</title>
                 <style>
-                    body { background: #020617; color: #f8fafc; }
+                    body { background: #020617; color: #f8fafc; font-family: sans-serif; }
                     .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
+                    .glow { box-shadow: 0 0 20px rgba(249, 115, 22, 0.2); }
+                    select option { background: #0f172a; color: white; }
                 </style>
             </head>
             <body class="flex items-center justify-center min-h-screen p-4">
-                <div class="glass p-8 rounded-[2rem] shadow-2xl w-full max-w-md">
+                <div class="glass p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md glow">
                     <h1 class="text-3xl font-black italic tracking-tighter mb-2 text-center">SCORPIO<span class="text-orange-500 text-4xl">.</span></h1>
                     
                     <div id="setup-view">
-                        <div id="qr-container" class="bg-white p-3 rounded-2xl inline-block hidden mx-auto"><img id="qrcode" class="w-40 h-40"></div>
-                        <p id="st-text" class="text-center text-xs text-slate-500 uppercase tracking-widest animate-pulse">Establishing Secure Link...</p>
+                        <div id="qr-container" class="bg-white p-3 rounded-2xl hidden mx-auto mb-4"><img id="qrcode" class="w-48 h-48 mx-auto"></div>
+                        <p id="st-text" class="text-center text-[10px] text-slate-500 uppercase tracking-widest animate-pulse">Syncing Engine...</p>
                     </div>
 
                     <div id="dash-view" class="hidden space-y-4">
-                        <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
-                            <div>
-                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Status</p>
-                                <p id="mode-text" class="text-sm font-bold"></p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                                <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Status</p>
+                                <p id="mode-text" class="text-xs font-black"></p>
                             </div>
-                            <div class="text-right">
-                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Views</p>
+                            <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-right">
+                                <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Views</p>
                                 <p id="view-count" class="text-xl font-black italic">0</p>
                             </div>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[10px] text-slate-400 font-bold uppercase ml-1">Emoji Reaction</label>
+                            <label class="text-[9px] text-slate-500 font-bold uppercase ml-1">Reaction Module</label>
                             <div class="flex gap-2">
-                                <select id="emoji-list" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 outline-none focus:border-orange-500">
-                                    <option value="none">🚫 Silent Lurking</option>
-                                    <option value="🔥">🔥 Fire</option><option value="❤️">❤️ Love</option><option value="🙌">🙌 Hands Up</option><option value="🦁">🦁 Lion</option>
+                                <select id="emoji-list" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-sm outline-none focus:border-orange-500">
+                                    <option value="none">🚫 Silent Lurk</option>
+                                    <optgroup label="Fire & Energy">
+                                        <option value="🔥">🔥 Fire</option><option value="⚡">⚡ Lightning</option><option value="💥">💥 Explosion</option><option value="✨">✨ Sparkles</option><option value="💯">💯 100</option><option value="🚀">🚀 Rocket</option>
+                                    </optgroup>
+                                    <optgroup label="Love & Hearts">
+                                        <option value="❤️">❤️ Red Heart</option><option value="🧡">🧡 Orange Heart</option><option value="🖤">🖤 Black Heart</option><option value="💘">💘 Love Bolt</option><option value="🌹">🌹 Rose</option>
+                                    </optgroup>
+                                    <optgroup label="Animals & Power">
+                                        <option value="🦁">🦁 Lion</option><option value="🦅">🦅 Eagle</option><option value="🦂">🦂 Scorpio</option><option value="🐉">🐉 Dragon</option><option value="🦾">🦾 Power Arm</option><option value="🥷">🥷 Shinobi</option>
+                                    </optgroup>
+                                    <optgroup label="Classic Reacts">
+                                        <option value="😂">😂 Laughing</option><option value="🙌">🙌 Hands Up</option><option value="🫡">🫡 Salute</option><option value="👀">👀 Looking</option><option value="✅">✅ Verified</option><option value="💎">💎 Diamond</option>
+                                    </optgroup>
+                                    <optgroup label="Nature">
+                                        <option value="🌊">🌊 Wave</option><option value="🌙">🌙 Moon</option><option value="🌵">🌵 Cactus</option><option value="🍃">🍃 Leaves</option>
+                                    </optgroup>
                                 </select>
-                                <button onclick="updateEmoji()" class="bg-orange-600 px-4 rounded-xl font-bold text-xs uppercase transition-hover hover:bg-orange-500">Set</button>
+                                <button onclick="updateEmoji()" class="bg-orange-600 px-4 rounded-xl font-bold text-[10px] uppercase hover:bg-orange-500 transition-colors">Apply</button>
                             </div>
                         </div>
 
-                        <button id="toggleBtn" onclick="toggleBot()" class="w-full py-4 rounded-xl font-black text-xs uppercase transition-all"></button>
+                        <button id="toggleBtn" onclick="toggleBot()" class="w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all mt-2"></button>
                         
                         <div class="pt-4 border-t border-slate-800 text-center">
-                            <p class="text-[8px] text-slate-500 uppercase tracking-[0.2em]">Last Heartbeat: <span id="pulse-time" class="text-orange-400">WAITING</span></p>
+                            <p class="text-[8px] text-slate-500 uppercase tracking-[0.3em]">Last Heartbeat: <span id="pulse-time" class="text-orange-400">WAITING</span></p>
                         </div>
                     </div>
                 </div>
@@ -173,12 +187,12 @@ const server = http.createServer((req, res) => {
                             if(lastE !== data.currentEmoji) { document.getElementById('emoji-list').value = data.currentEmoji; lastE = data.currentEmoji; }
                             
                             const modeText = document.getElementById('mode-text');
-                            modeText.innerText = data.active ? 'ACTIVE' : 'PAUSED';
-                            modeText.className = data.active ? 'text-sm font-bold text-orange-500' : 'text-sm font-bold text-slate-500';
+                            modeText.innerText = data.active ? 'OPERATIONAL' : 'STANDBY';
+                            modeText.className = data.active ? 'text-xs font-black text-orange-500' : 'text-xs font-black text-slate-500';
 
                             const btn = document.getElementById('toggleBtn');
                             btn.className = data.active ? 'w-full py-4 rounded-xl font-black bg-red-500/10 text-red-500 border border-red-500/20' : 'w-full py-4 rounded-xl font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-                            btn.innerText = data.active ? 'SHUTDOWN SYSTEM' : 'BOOT SYSTEM';
+                            btn.innerText = data.active ? 'TERMINATE SESSION' : 'INITIALIZE SESSION';
                         } else if (data.qr) {
                             document.getElementById('qr-container').classList.remove('hidden');
                             document.getElementById('qrcode').src = data.qr;
@@ -189,7 +203,7 @@ const server = http.createServer((req, res) => {
                             const r = await fetch('/status');
                             updateDash(await r.json());
                         } catch(e) {}
-                    }, 2000);
+                    }, 3000);
                 </script>
             </body>
             </html>

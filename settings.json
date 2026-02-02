@@ -1,4 +1,5 @@
 {
-  "emoji": "🦂",
-  "active": true
+  "emoji": "none",
+  "active": true,
+  "maxDelay": 1
 }

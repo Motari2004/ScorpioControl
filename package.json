@@ -18,10 +18,13 @@
   "license": "ISC",
   "dependencies": {
     "@whiskeysockets/baileys": "latest",
+    "axios": "^1.6.0",
     "pino": "^8.16.1",
     "qrcode": "^1.5.3",
     "link-preview-js": "^3.0.4",
-    "jimp": "^0.22.10"
+    "jimp": "^0.22.10",
+    "fs-extra": "^11.1.1",
+    "form-data": "^4.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

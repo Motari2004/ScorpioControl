@@ -5,6 +5,10 @@ const pino = require("pino");
 const QRCode = require("qrcode");
 const path = require("path");
 
+// --- CONFIGURATION ---
+const PORT = process.env.PORT || 3000;
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL; // Render provides this automatically
+
 // --- LOG FILTRATION ---
 const originalWrite = process.stdout.write;
 process.stdout.write = function (chunk, encoding, callback) {
@@ -38,6 +42,18 @@ const AUTH_FOLDER = isProduction ? path.join('/tmp', 'scorpio_auth') : path.join
 
 if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 
+// --- ANTI-SLEEP PING LOGIC ---
+function startPing() {
+    if (!RENDER_URL) return;
+    setInterval(() => {
+        http.get(RENDER_URL, (res) => {
+            originalWrite.call(process.stdout, `\x1b[32m[KEEP-ALIVE]\x1b[0m Ping sent to ${RENDER_URL}\n`);
+        }).on('error', (err) => {
+            originalWrite.call(process.stdout, `\x1b[31m[KEEP-ALIVE]\x1b[0m Ping failed\n`);
+        });
+    }, 10 * 60 * 1000); // Pings every 10 minutes
+}
+
 async function startWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
     const sock = makeWASocket({
@@ -56,6 +72,7 @@ async function startWhatsApp() {
             qrCodeData = null;
             console.clear();
             originalWrite.call(process.stdout, `\x1b[38;5;208m[SCORPIO]\x1b[0m Engine Online.\n`);
+            startPing(); // Start pings once connected
         }
         if (connection === 'close') {
             isConnected = false;
@@ -266,5 +283,6 @@ const server = http.createServer((req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { startWhatsApp(); });
+server.listen(PORT, () => { 
+    startWhatsApp(); 
+});

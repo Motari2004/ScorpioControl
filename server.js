@@ -38,10 +38,10 @@ if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 function startHeartbeat() {
     setInterval(async () => {
         try {
+            // Internal loop to keep the process warm
             await axios.get(`${MY_URL}/cron-pulse`);
-            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse validated.\n`);
         } catch (e) {
-            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse failed.\n`);
+            originalWrite.call(process.stdout, `[HEARTBEAT] Internal pulse check.\n`);
         }
     }, 600000); 
 }
@@ -93,10 +93,11 @@ async function startWhatsApp() {
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     
+    // FIX: Optimized for cron-job.org to prevent "Output too large"
     if (req.url === "/cron-pulse") {
         lastPulseTime = new Date().toLocaleTimeString();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "alive", timestamp: lastPulseTime }));
+        res.writeHead(200, { "Content-Type": "text/plain", "Content-Length": 1 });
+        res.end("1"); 
         return;
     }
 
@@ -119,21 +120,21 @@ const server = http.createServer((req, res) => {
                 </style>
             </head>
             <body class="flex items-center justify-center min-h-screen p-4">
-                <div class="glass p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md glow">
-                    <h1 class="text-3xl font-black italic tracking-tighter mb-6 text-center">SCORPIO<span class="text-orange-500 text-4xl">.</span></h1>
+                <div class="glass p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md glow text-center">
+                    <h1 class="text-3xl font-black italic tracking-tighter mb-6">SCORPIO<span class="text-orange-500 text-4xl">.</span></h1>
                     
-                    <div id="setup-view" class="flex flex-col items-center justify-center">
+                    <div id="setup-view" class="flex flex-col items-center">
                         <div id="qr-container" class="hidden mb-6">
                             <div class="qr-frame">
-                                <img id="qrcode" class="w-56 h-56" alt="Scan to Link">
+                                <img id="qrcode" class="w-56 h-56" alt="Scan QR">
                             </div>
                         </div>
-                        <p id="st-text" class="text-center text-[10px] text-slate-500 uppercase tracking-widest animate-pulse font-bold">Syncing Protocol...</p>
+                        <p id="st-text" class="text-[10px] text-slate-500 uppercase tracking-widest animate-pulse font-bold">Initializing Engine...</p>
                     </div>
 
                     <div id="dash-view" class="hidden space-y-4">
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                            <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 text-left">
                                 <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest mb-1">Status</p>
                                 <p id="mode-text" class="text-xs font-black"></p>
                             </div>
@@ -143,7 +144,7 @@ const server = http.createServer((req, res) => {
                             </div>
                         </div>
 
-                        <div class="space-y-2">
+                        <div class="space-y-2 text-left">
                             <label class="text-[9px] text-slate-500 font-bold uppercase ml-1">Reaction Module</label>
                             <div class="flex gap-2">
                                 <select id="emoji-list" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 text-sm outline-none focus:border-orange-500">
@@ -202,6 +203,7 @@ const server = http.createServer((req, res) => {
                             document.getElementById('qr-container').classList.remove('hidden');
                             document.getElementById('qrcode').src = data.qr;
                             document.getElementById('st-text').innerText = "SCAN QR TO AUTHORIZE";
+                            document.getElementById('st-text').classList.remove('animate-pulse');
                         }
                     }
                     setInterval(async () => {

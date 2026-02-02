@@ -4,10 +4,11 @@ const fs = require("fs");
 const pino = require("pino");
 const QRCode = require("qrcode");
 const path = require("path");
+const axios = require("axios"); // Make sure to run: npm install axios
 
 // --- CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
-const RENDER_URL = process.env.RENDER_EXTERNAL_URL; 
+const MY_URL = "https://ig24.onrender.com"; // Your specific Render URL
 
 const originalWrite = process.stdout.write;
 process.stdout.write = function (chunk, encoding, callback) {
@@ -27,10 +28,24 @@ function saveSettings() { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(setting
 let qrCodeData = null; 
 let isConnected = false;
 let viewsCount = 0;
+let lastPulseTime = "Never";
 
 const isProduction = process.env.RENDER || process.env.NODE_ENV === 'production';
 const AUTH_FOLDER = isProduction ? path.join('/tmp', 'scorpio_auth') : path.join(__dirname, 'auth_info');
 if (!fs.existsSync(AUTH_FOLDER)) fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+
+// --- ANTI-SLEEP HEARTBEAT ---
+function startHeartbeat() {
+    setInterval(async () => {
+        try {
+            await axios.get(MY_URL + "/cron-pulse");
+            lastPulseTime = new Date().toLocaleTimeString();
+            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse sent at ${lastPulseTime}\n`);
+        } catch (e) {
+            originalWrite.call(process.stdout, `[HEARTBEAT] Pulse failed, but engine is active.\n`);
+        }
+    }, 600000); // Pings every 10 minutes
+}
 
 async function startWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
@@ -49,7 +64,8 @@ async function startWhatsApp() {
             isConnected = true;
             qrCodeData = null;
             console.clear();
-            originalWrite.call(process.stdout, `\x1b[38;5;208m[SCORPIO]\x1b[0m Hybrid Engine Active.\n`);
+            originalWrite.call(process.stdout, `\x1b[38;5;208m[SCORPIO]\x1b[0m Hybrid Engine Active @ ${MY_URL}\n`);
+            startHeartbeat(); 
         }
         if (connection === 'close') {
             isConnected = false;
@@ -77,6 +93,15 @@ async function startWhatsApp() {
 // --- SERVER & DASHBOARD ---
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    
+    // Pulse Endpoint for External Monitors
+    if (req.url === "/cron-pulse") {
+        lastPulseTime = new Date().toLocaleTimeString();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "alive", timestamp: lastPulseTime }));
+        return;
+    }
+
     if (req.url === "/") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end(`
@@ -104,7 +129,7 @@ const server = http.createServer((req, res) => {
                     <div id="dash-view" class="hidden space-y-4">
                         <div class="bg-slate-950/50 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
                             <div>
-                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Current Protocol</p>
+                                <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Status</p>
                                 <p id="mode-text" class="text-sm font-bold"></p>
                             </div>
                             <div class="text-right">
@@ -114,28 +139,21 @@ const server = http.createServer((req, res) => {
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-[10px] text-slate-400 font-bold uppercase ml-1">Emoji Library</label>
+                            <label class="text-[10px] text-slate-400 font-bold uppercase ml-1">Emoji Reaction</label>
                             <div class="flex gap-2">
                                 <select id="emoji-list" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-3 outline-none focus:border-orange-500">
-                                    <option value="none">🚫 View Only (Silent)</option>
-                                    <optgroup label="Popular">
-                                        <option value="🔥">🔥 Fire</option><option value="❤️">❤️ Love</option><option value="😂">😂 Laugh</option><option value="🙌">🙌 Hands Up</option>
-                                    </optgroup>
-                                    <optgroup label="Energy">
-                                        <option value="⚡">⚡ Lightning</option><option value="🚀">🚀 Rocket</option><option value="💥">💥 Boom</option><option value="✨">✨ Sparkle</option><option value="💯">💯 100</option>
-                                    </optgroup>
-                                    <optgroup label="Nature/Animal">
-                                        <option value="🦂">🦂 Scorpio</option><option value="🦁">🦁 Lion</option><option value="🦅">🦅 Eagle</option><option value="🌊">🌊 Wave</option><option value="🌙">🌙 Moon</option>
-                                    </optgroup>
-                                    <optgroup label="Cool">
-                                        <option value="🥷">🥷 Shinobi</option><option value="🕶️">🕶️ Stealth</option><option value="💎">💎 Diamond</option><option value="🦾">🦾 Flex</option>
-                                    </optgroup>
+                                    <option value="none">🚫 Silent Lurking</option>
+                                    <option value="🔥">🔥 Fire</option><option value="❤️">❤️ Love</option><option value="🙌">🙌 Hands Up</option><option value="🦁">🦁 Lion</option>
                                 </select>
                                 <button onclick="updateEmoji()" class="bg-orange-600 px-4 rounded-xl font-bold text-xs uppercase transition-hover hover:bg-orange-500">Set</button>
                             </div>
                         </div>
 
-                        <button id="toggleBtn" onclick="toggleBot()" class="w-full py-4 rounded-xl font-black text-xs uppercase tracking-tighter transition-all"></button>
+                        <button id="toggleBtn" onclick="toggleBot()" class="w-full py-4 rounded-xl font-black text-xs uppercase transition-all"></button>
+                        
+                        <div class="pt-4 border-t border-slate-800 text-center">
+                            <p class="text-[8px] text-slate-500 uppercase tracking-[0.2em]">Last Heartbeat: <span id="pulse-time" class="text-orange-400">WAITING</span></p>
+                        </div>
                     </div>
                 </div>
 
@@ -151,16 +169,12 @@ const server = http.createServer((req, res) => {
                             document.getElementById('setup-view').classList.add('hidden');
                             document.getElementById('dash-view').classList.remove('hidden');
                             document.getElementById('view-count').innerText = data.views;
+                            document.getElementById('pulse-time').innerText = data.lastPulse;
                             if(lastE !== data.currentEmoji) { document.getElementById('emoji-list').value = data.currentEmoji; lastE = data.currentEmoji; }
                             
                             const modeText = document.getElementById('mode-text');
-                            if (data.currentEmoji === 'none') {
-                                modeText.innerText = 'STEALTH LURKING';
-                                modeText.className = 'text-sm font-bold text-blue-400';
-                            } else {
-                                modeText.innerText = 'AUTO-REACTING (' + data.currentEmoji + ')';
-                                modeText.className = 'text-sm font-bold text-orange-500';
-                            }
+                            modeText.innerText = data.active ? 'ACTIVE' : 'PAUSED';
+                            modeText.className = data.active ? 'text-sm font-bold text-orange-500' : 'text-sm font-bold text-slate-500';
 
                             const btn = document.getElementById('toggleBtn');
                             btn.className = data.active ? 'w-full py-4 rounded-xl font-black bg-red-500/10 text-red-500 border border-red-500/20' : 'w-full py-4 rounded-xl font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
@@ -171,8 +185,10 @@ const server = http.createServer((req, res) => {
                         }
                     }
                     setInterval(async () => {
-                        const r = await fetch('/status');
-                        updateDash(await r.json());
+                        try {
+                            const r = await fetch('/status');
+                            updateDash(await r.json());
+                        } catch(e) {}
                     }, 2000);
                 </script>
             </body>
@@ -180,7 +196,14 @@ const server = http.createServer((req, res) => {
         `);
     } else if (req.url === "/status") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ connected: isConnected, qr: qrCodeData, active: settings.active, views: viewsCount, currentEmoji: settings.emoji }));
+        res.end(JSON.stringify({ 
+            connected: isConnected, 
+            qr: qrCodeData, 
+            active: settings.active, 
+            views: viewsCount, 
+            currentEmoji: settings.emoji,
+            lastPulse: lastPulseTime 
+        }));
     } else if (req.url === "/toggle") {
         settings.active = !settings.active;
         saveSettings();
@@ -192,4 +215,6 @@ const server = http.createServer((req, res) => {
     }
 });
 
-server.listen(PORT, () => { startWhatsApp(); });
+server.listen(PORT, () => { 
+    startWhatsApp(); 
+});

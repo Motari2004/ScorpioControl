@@ -113,17 +113,22 @@ const server = http.createServer((req, res) => {
                 <style>
                     body { background: #020617; color: #f8fafc; font-family: sans-serif; }
                     .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
-                    .glow { box-shadow: 0 0 20px rgba(249, 115, 22, 0.2); }
+                    .glow { box-shadow: 0 0 30px rgba(249, 115, 22, 0.15); }
                     select option { background: #0f172a; color: white; }
+                    .qr-frame { background: white; padding: 12px; border-radius: 24px; display: flex; justify-content: center; align-items: center; }
                 </style>
             </head>
             <body class="flex items-center justify-center min-h-screen p-4">
                 <div class="glass p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md glow">
-                    <h1 class="text-3xl font-black italic tracking-tighter mb-2 text-center">SCORPIO<span class="text-orange-500 text-4xl">.</span></h1>
+                    <h1 class="text-3xl font-black italic tracking-tighter mb-6 text-center">SCORPIO<span class="text-orange-500 text-4xl">.</span></h1>
                     
-                    <div id="setup-view">
-                        <div id="qr-container" class="bg-white p-3 rounded-2xl hidden mx-auto mb-4"><img id="qrcode" class="w-48 h-48 mx-auto"></div>
-                        <p id="st-text" class="text-center text-[10px] text-slate-500 uppercase tracking-widest animate-pulse">Syncing Engine...</p>
+                    <div id="setup-view" class="flex flex-col items-center justify-center">
+                        <div id="qr-container" class="hidden mb-6">
+                            <div class="qr-frame">
+                                <img id="qrcode" class="w-56 h-56" alt="Scan to Link">
+                            </div>
+                        </div>
+                        <p id="st-text" class="text-center text-[10px] text-slate-500 uppercase tracking-widest animate-pulse font-bold">Syncing Protocol...</p>
                     </div>
 
                     <div id="dash-view" class="hidden space-y-4">
@@ -196,6 +201,7 @@ const server = http.createServer((req, res) => {
                         } else if (data.qr) {
                             document.getElementById('qr-container').classList.remove('hidden');
                             document.getElementById('qrcode').src = data.qr;
+                            document.getElementById('st-text').innerText = "SCAN QR TO AUTHORIZE";
                         }
                     }
                     setInterval(async () => {
